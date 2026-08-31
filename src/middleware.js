@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server';
 
-export function proxy(request) {
+export function middleware(request) {
   const url = request.nextUrl;
   const hostname = request.headers.get('host') || '';
 
-  // Dominios principales sin subdominio de coach
-  const mainDomains = ['localhost:3000', '127.0.0.1:3000', 'olympo.pro', 'www.olympo.pro', 'olympo-coaches.vercel.app'];
-
-  // Ignorar peticiones de API, autenticación o recursos estáticos
+  // 1. Ignorar peticiones de Next.js internals, API, recursos estáticos y rutas globales de autenticación
   if (
     url.pathname.startsWith('/_next') ||
     url.pathname.startsWith('/api') ||
@@ -19,22 +16,31 @@ export function proxy(request) {
     return NextResponse.next();
   }
 
+  // 2. Dominios principales sin subdominio de coach
+  const isMainDomain =
+    hostname.includes('localhost') ||
+    hostname.includes('127.0.0.1') ||
+    hostname.startsWith('www.') ||
+    hostname === 'olympo.pro' ||
+    hostname === 'app.olympofit.com' ||
+    hostname.endsWith('.vercel.app');
+
   let subdomain = null;
 
-  // Extraer subdominio (ej: carlos.olympo.pro -> carlos, andrea.localhost:3000 -> andrea)
-  if (!mainDomains.includes(hostname)) {
+  // 3. Extraer subdominio si no es dominio principal
+  if (!isMainDomain) {
     const parts = hostname.split('.');
-    if (parts.length > 1 && parts[0] !== 'www') {
+    if (parts.length > 2 && parts[0] !== 'www') {
       subdomain = parts[0];
     }
   }
 
-  // Si no hay subdominio, estamos en la landing principal
+  // Si no hay subdominio, dejar pasar a la landing normal o ruta estándar
   if (!subdomain) {
     return NextResponse.next();
   }
 
-  // Prevenir duplicados de ruta cuando se navega con subdominio (ej: andrea.localhost:3000/andrea/panel -> /andrea/panel)
+  // Prevenir duplicados de ruta cuando se navega con subdominio (ej: andrea.olympo.pro/andrea/panel -> /andrea/panel)
   let targetPath = url.pathname;
   if (targetPath.startsWith(`/${subdomain}/`)) {
     targetPath = targetPath.substring(subdomain.length + 1);
@@ -47,7 +53,6 @@ export function proxy(request) {
     new URL(`/${subdomain}${targetPath}${url.search}`, request.url)
   );
 
-  // Inyectar el slug del coach en los headers para que lo lean los Server Components
   response.headers.set('x-tenant-slug', subdomain);
 
   return response;
