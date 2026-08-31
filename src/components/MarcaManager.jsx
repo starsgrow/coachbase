@@ -1,7 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Palette, Image as ImageIcon, Type, Sparkles, Loader2, Save, LayoutTemplate } from "lucide-react";
+import {
+  Palette,
+  Image as ImageIcon,
+  Type,
+  Sparkles,
+  Loader2,
+  Save,
+  LayoutTemplate,
+  UploadCloud,
+  Check,
+  Trash2,
+} from "lucide-react";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 export default function MarcaManager({ coachInicial }) {
@@ -13,11 +24,43 @@ export default function MarcaManager({ coachInicial }) {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     setSuccessMsg(""); // Limpiar mensaje de éxito al editar
+  };
+
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingLogo(true);
+    setSuccessMsg("");
+
+    try {
+      const uploadData = new FormData();
+      uploadData.append("file", file);
+
+      const res = await fetchWithAuth("/api/marca/subir-logo", {
+        method: "POST",
+        body: uploadData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Error al subir logotipo");
+      }
+
+      setFormData((prev) => ({ ...prev, logo_url: data.logo_url }));
+      setSuccessMsg("¡Logotipo subido y guardado exitosamente en Supabase Storage!");
+    } catch (err) {
+      console.error("Error subiendo logo:", err);
+      alert("Error al subir el logo: " + err.message);
+    } finally {
+      setIsUploadingLogo(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -135,29 +178,85 @@ export default function MarcaManager({ coachInicial }) {
 
             <hr className="border-slate-800" />
 
-            {/* Logo */}
-            <div>
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-300 mb-2">
-                <ImageIcon className="w-4 h-4 text-indigo-400" /> URL del Logotipo
-              </label>
-              <input
-                type="url"
-                name="logo_url"
-                value={formData.logo_url}
-                onChange={handleChange}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-indigo-500 transition-colors"
-                placeholder="https://ejemplo.com/mi-logo.png"
-              />
-              <p className="text-xs text-slate-500 mt-2">
-                Pega un enlace directo a tu imagen (PNG o JPG preferiblemente cuadrada). Si lo dejas vacío se mostrarán tus iniciales.
-              </p>
+            {/* Logotipo con Subida a Supabase Storage */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 text-sm font-semibold text-slate-300">
+                  <ImageIcon className="w-4 h-4 text-indigo-400" /> Logotipo de tu Marca
+                </label>
+                {formData.logo_url && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, logo_url: "" })}
+                    className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Quitar Logo
+                  </button>
+                )}
+              </div>
+
+              {/* Zona de Arrastrar y Soltar / Subida de Archivo */}
+              <div className="relative border-2 border-dashed border-slate-800 hover:border-indigo-500/50 rounded-2xl p-4 transition-all bg-slate-950/60 text-center">
+                <input
+                  type="file"
+                  id="logo-upload"
+                  accept="image/png, image/jpeg, image/webp, image/svg+xml"
+                  onChange={handleLogoUpload}
+                  disabled={isUploadingLogo}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed z-10"
+                />
+
+                {isUploadingLogo ? (
+                  <div className="py-6 flex flex-col items-center justify-center gap-2">
+                    <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
+                    <span className="text-xs font-semibold text-slate-300">Subiendo a Supabase Storage...</span>
+                  </div>
+                ) : formData.logo_url ? (
+                  <div className="py-2 flex items-center justify-center gap-4">
+                    <div className="w-16 h-16 rounded-xl bg-slate-900 border border-slate-800 p-2 flex items-center justify-center overflow-hidden">
+                      <img src={formData.logo_url} alt="Logo" className="w-full h-full object-contain" />
+                    </div>
+                    <div className="text-left">
+                      <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5" /> Logotipo guardado en Storage
+                      </span>
+                      <p className="text-[11px] text-slate-400 mt-0.5 max-w-xs truncate">{formData.logo_url}</p>
+                      <span className="text-[10px] text-indigo-400 font-semibold block mt-1">Haz clic o arrastra para cambiarlo</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-6 flex flex-col items-center justify-center gap-2">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-600/10 text-indigo-400 flex items-center justify-center border border-indigo-500/20">
+                      <UploadCloud className="w-6 h-6" />
+                    </div>
+                    <p className="text-xs font-bold text-slate-200">
+                      Arrastra tu imagen aquí o <span className="text-indigo-400 underline">haz clic para examinar</span>
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Formatos recomendados: PNG transparente, SVG, WEBP o JPG (Máx. 5MB)
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Entrada manual de URL alternativa */}
+              <div className="pt-1">
+                <input
+                  type="url"
+                  name="logo_url"
+                  value={formData.logo_url}
+                  onChange={handleChange}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 transition-colors font-mono"
+                  placeholder="O pega una URL externa si ya la tienes hospedada..."
+                />
+              </div>
             </div>
 
             {/* Botón Guardar */}
             <div className="pt-4">
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isUploadingLogo}
                 className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl font-bold text-white transition-all shadow-lg active:scale-95 disabled:opacity-50"
                 style={{ backgroundColor: formData.color_primario }}
               >
