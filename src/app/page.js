@@ -61,7 +61,7 @@ export default async function RootHomePage() {
             </div>
             <div className="flex flex-col">
               <span className="font-extrabold text-xl tracking-tight text-white leading-tight">
-                Olympo <span className="bg-gradient-to-r from-indigo-400 to-sky-400 bg-clip-text text-transparent">Pro</span>
+                Coach <span className="bg-gradient-to-r from-indigo-400 to-sky-400 bg-clip-text text-transparent">Base</span>
               </span>
               <span className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase">Coach & Athlete Platform</span>
             </div>
@@ -307,7 +307,7 @@ export default async function RootHomePage() {
               <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center justify-center gap-2">
                 <Flame className="w-4 h-4 text-amber-400" /> Coaches Destacados en la Plataforma
               </h4>
-              <p className="text-xs text-slate-500">Explora portales personalizados creados con Olympo Pro</p>
+              <p className="text-xs text-slate-500">Explora portales personalizados creados con CoachBase</p>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 max-w-5xl mx-auto">
@@ -381,7 +381,7 @@ export default async function RootHomePage() {
         <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-indigo-500" />
-            <p className="font-semibold text-slate-400">© {new Date().getFullYear()} Olympo Pro • Plataforma Marca Blanca para Entrenadores y Atletas.</p>
+            <p className="font-semibold text-slate-400">© {new Date().getFullYear()} CoachBase • Plataforma Marca Blanca para Entrenadores y Atletas.</p>
           </div>
           <div className="flex items-center gap-4 text-slate-400">
             <Link href="/auth/login" className="hover:text-white transition-colors">Login</Link>

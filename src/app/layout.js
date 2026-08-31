@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Olympo Pro — Tu Plataforma de Marca Blanca para Coaches Fitness",
+  title: "CoachBase — Tu Plataforma de Marca Blanca para Coaches Fitness",
   description: "Crea tu propia app de entrenamiento con tu marca, subdominio personalizado, biblioteca de videos en CDN y rutinas inteligentes con IA.",
 };
 

@@ -144,7 +144,7 @@ export default function TenantLoginView({ tenant, coach }) {
           <div className="pt-2 text-[11px] text-slate-500">
             ¿Eres coach y quieres crear tu propia app?{" "}
             <Link href="/auth/registro" className="text-indigo-400 hover:text-indigo-300 underline font-semibold">
-              Crear App en Olympo Pro
+              Crear App en CoachBase
             </Link>
           </div>
         </div>

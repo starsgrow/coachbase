@@ -50,9 +50,9 @@ export default function LoginPage() {
         <div className="text-center space-y-2">
           <Link href="/" className="inline-flex items-center gap-2 font-bold text-xl text-white mb-2">
             <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-black">
-              O
+              CB
             </div>
-            Olympo <span className="text-indigo-400">Pro</span>
+            Coach <span className="text-indigo-400">Base</span>
           </Link>
           <h2 className="text-2xl font-black text-white tracking-tight">Acceso a tu Panel de Coach</h2>
           <p className="text-sm text-slate-400">Ingresa tus credenciales para administrar tu app</p>

@@ -76,9 +76,9 @@ export default function RegistroPage() {
         <div className="text-center space-y-2">
           <Link href="/" className="inline-flex items-center gap-2 font-bold text-xl text-white mb-2">
             <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center font-black">
-              O
+              CB
             </div>
-            Olympo <span className="text-indigo-400">Pro</span>
+            Coach <span className="text-indigo-400">Base</span>
           </Link>
           <h2 className="text-2xl font-black text-white tracking-tight">Crea tu App Marca Blanca</h2>
           <p className="text-sm text-slate-400">Configura tu perfil de coach en menos de 2 minutos</p>
