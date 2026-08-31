@@ -112,7 +112,7 @@ export default function MobileNav({ tenant, isCoachAuth, nombreCoach }) {
               </div>
             ) : (
               <Link
-                href="/auth/login"
+                href={`/${tenant}/login`}
                 onClick={closeMenu}
                 className="flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-sm font-semibold text-white transition-colors"
               >

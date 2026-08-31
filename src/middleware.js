@@ -4,7 +4,7 @@ export function middleware(request) {
   const url = request.nextUrl;
   const hostname = request.headers.get('host') || '';
 
-  // 1. Ignorar peticiones de Next.js internals, API, recursos estáticos y rutas globales de autenticación
+  // 1. SIEMPRE permitir rutas del sistema, estáticos, auth global y APIs
   if (
     url.pathname.startsWith('/_next') ||
     url.pathname.startsWith('/api') ||
@@ -16,26 +16,29 @@ export function middleware(request) {
     return NextResponse.next();
   }
 
-  // 2. Dominios principales sin subdominio de coach
+  // 2. Dominios principales que NUNCA deben extraer subdominio de coach (Vercel, localhost, olympo.pro)
   const isMainDomain =
     hostname.includes('localhost') ||
     hostname.includes('127.0.0.1') ||
-    hostname.startsWith('www.') ||
+    hostname.includes('vercel.app') ||
     hostname === 'olympo.pro' ||
+    hostname === 'www.olympo.pro' ||
     hostname === 'app.olympofit.com' ||
-    hostname.endsWith('.vercel.app');
+    hostname === 'coach.app.olympofit.com';
+
+  if (isMainDomain) {
+    return NextResponse.next();
+  }
 
   let subdomain = null;
 
-  // 3. Extraer subdominio si no es dominio principal
-  if (!isMainDomain) {
-    const parts = hostname.split('.');
-    if (parts.length > 2 && parts[0] !== 'www') {
-      subdomain = parts[0];
-    }
+  // 3. Extraer subdominio en dominios personalizados (ej: miguel.olympo.pro -> miguel)
+  const parts = hostname.split('.');
+  if (parts.length > 2 && parts[0] !== 'www') {
+    subdomain = parts[0];
   }
 
-  // Si no hay subdominio, dejar pasar a la landing normal o ruta estándar
+  // Si no hay subdominio, dejar pasar a la ruta estándar
   if (!subdomain) {
     return NextResponse.next();
   }

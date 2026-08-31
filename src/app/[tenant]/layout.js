@@ -113,7 +113,7 @@ export default async function TenantLayout({ children, params }) {
               </>
             ) : (
               <Link
-                href="/auth/login"
+                href={`/${tenant}/login`}
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition-all"
               >
                 Iniciar Sesión
