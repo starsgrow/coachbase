@@ -73,6 +73,10 @@ export default function RutinasManager({
   const [transcribiendo, setTranscribiendo] = useState(false);
   const [procesandoIA, setProcesandoIA] = useState(false);
   const [voiceTargetClienteId, setVoiceTargetClienteId] = useState(null);
+  const [isModifyingDay, setIsModifyingDay] = useState(false);
+  const [modifyingExerciseIdx, setModifyingExerciseIdx] = useState(null);
+  const [replacingExerciseIdx, setReplacingExerciseIdx] = useState(null);
+  const [previewEjercicio, setPreviewEjercicio] = useState(null);
 
   // Estados de IA Automática
   const [generandoAutoIA, setGenerandoAutoIA] = useState(false);
@@ -419,34 +423,84 @@ export default function RutinasManager({
   };
 
   const procesarDictadoVozIA = async () => {
-    if (!textoVoz.trim()) return alert("Por favor dicta tu rutina antes de procesar.");
+    if (!textoVoz.trim()) return alert("Por favor dicta tu instrucción antes de procesar.");
 
     setProcesandoIA(true);
     try {
-      const res = await fetchWithAuth("/api/rutinas/generar-ia", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tipo: "voz",
-          comando: textoVoz,
-          coach_id: coachId
-        })
-      });
-
-      const data = await res.json();
-      if (res.ok && data.rutina) {
-        const cl = voiceTargetClienteId ? clientes.find((c) => c.id === voiceTargetClienteId) : null;
-        abrirNuevoEditor({
-          nombre_rutina: cl ? `Rutina Dictada — ${cl.nombre}` : "Rutina Dictada por Voz 🎙️",
-          objetivo: cl?.objetivo || "hipertrofia",
-          nivel: cl?.nivel || "intermedio",
-          dias_semana: data.rutina.length,
-          cliente_id: voiceTargetClienteId || null,
-          estructura_json: data.rutina
+      if (modifyingExerciseIdx !== null && rutinaEditando) {
+        const ejercicioActual = rutinaEditando.estructura_json[selectedDiaIdx].ejercicios[modifyingExerciseIdx];
+        
+        const res = await fetchWithAuth("/api/rutinas/generar-ia", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tipo: "voz-modificar-ejercicio",
+            comando: textoVoz,
+            ejercicio_actual: ejercicioActual,
+            coach_id: coachId
+          })
         });
-        setShowVoiceModal(false);
+
+        const data = await res.json();
+        if (res.ok && data.ejercicio) {
+          const estructura = [...rutinaEditando.estructura_json];
+          estructura[selectedDiaIdx].ejercicios[modifyingExerciseIdx] = data.ejercicio;
+          setRutinaEditando({ ...rutinaEditando, estructura_json: estructura });
+          setShowVoiceModal(false);
+          setModifyingExerciseIdx(null);
+        } else {
+          alert("Error de la IA: " + (data.error || "No se pudo interpretar el dictado."));
+        }
+      } else if (isModifyingDay && rutinaEditando) {
+        const diaActual = rutinaEditando.estructura_json[selectedDiaIdx];
+        
+        const res = await fetchWithAuth("/api/rutinas/generar-ia", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tipo: "voz-modificar",
+            comando: textoVoz,
+            dia_actual: diaActual,
+            coach_id: coachId
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.rutina && data.rutina.length > 0) {
+          const estructura = [...rutinaEditando.estructura_json];
+          estructura[selectedDiaIdx] = data.rutina[0];
+          setRutinaEditando({ ...rutinaEditando, estructura_json: estructura });
+          setShowVoiceModal(false);
+          setIsModifyingDay(false);
+        } else {
+          alert("Error de la IA: " + (data.error || "No se pudo interpretar el dictado."));
+        }
       } else {
-        alert("Error de la IA: " + (data.error || "No se pudo interpretar el dictado."));
+        const res = await fetchWithAuth("/api/rutinas/generar-ia", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tipo: "voz",
+            comando: textoVoz,
+            coach_id: coachId
+          })
+        });
+
+        const data = await res.json();
+        if (res.ok && data.rutina) {
+          const cl = voiceTargetClienteId ? clientes.find((c) => c.id === voiceTargetClienteId) : null;
+          abrirNuevoEditor({
+            nombre_rutina: cl ? `Rutina Dictada — ${cl.nombre}` : "Rutina Dictada por Voz 🎙️",
+            objetivo: cl?.objetivo || "hipertrofia",
+            nivel: cl?.nivel || "intermedio",
+            dias_semana: data.rutina.length,
+            cliente_id: voiceTargetClienteId || null,
+            estructura_json: data.rutina
+          });
+          setShowVoiceModal(false);
+        } else {
+          alert("Error de la IA: " + (data.error || "No se pudo interpretar el dictado."));
+        }
       }
     } catch (err) {
       console.error("Error al procesar dictado:", err);
@@ -526,7 +580,7 @@ export default function RutinasManager({
 
     const nuevoEjercicio = {
       ejercicio_id: ej.id,
-      nombre: ej.nombre,
+      nombre: ej.nombre_ejercicio || ej.nombre,
       grupo_muscular: ej.grupo_muscular || "General",
       tipo_ejercicio: esCardio ? "cardio" : "fuerza",
       series: esCardio ? null : 4,
@@ -542,7 +596,13 @@ export default function RutinasManager({
       video_demo_url: ej.video_demo_url || null
     };
 
-    diaActual.ejercicios.push(nuevoEjercicio);
+    if (replacingExerciseIdx !== null) {
+      diaActual.ejercicios[replacingExerciseIdx] = nuevoEjercicio;
+      setReplacingExerciseIdx(null);
+    } else {
+      diaActual.ejercicios.push(nuevoEjercicio);
+    }
+    
     setRutinaEditando({ ...rutinaEditando, estructura_json: estructura });
     setShowExercisePicker(false);
   };
@@ -1293,30 +1353,33 @@ export default function RutinasManager({
       {/* MODAL 4: DICTAR POR VOZ 🎙️ */}
       {/* ========================================================= */}
       {showVoiceModal && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-xl p-6 shadow-2xl space-y-5">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="font-bold text-white text-base flex items-center gap-2">
-                <Mic className="w-5 h-5 text-red-500 animate-pulse" /> Dictar Rutina por Voz
+                <Mic className="w-5 h-5 text-red-500 animate-pulse" /> {isModifyingDay ? "Modificar Día con Voz" : "Dictar Rutina por Voz"}
               </h3>
-              <button onClick={() => setShowVoiceModal(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => { setShowVoiceModal(false); setIsModifyingDay(false); setModifyingExerciseIdx(null); }} className="text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <p className="text-xs text-slate-300 leading-relaxed">
-              Habla con naturalidad dictando los ejercicios, series, repeticiones o minutos de cardio. La IA capturará tu voz y estructurará el plan.
+              {modifyingExerciseIdx !== null
+                ? "Dicta cómo deseas modificar este ejercicio en particular. (ej: 'Sube las series a 5 y baja el descanso', 'Cambia el ejercicio a sentadilla libre', 'Pon que el ritmo sea rápido')."
+                : isModifyingDay 
+                ? "Dicta qué deseas cambiar en este día. (ej: 'Quita el press banca y pon flexiones', 'Cambia el cardio por HIIT', 'Sube las series a 4 en todos')." 
+                : "Habla con naturalidad dictando los ejercicios, series, repeticiones o minutos de cardio. La IA capturará tu voz y estructurará el plan."}
             </p>
 
             {/* Caja de Transcripción */}
-            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 min-h-[120px] text-sm text-slate-200 focus-within:border-indigo-500 relative">
-              {textoVoz ? (
-                <p className="whitespace-pre-wrap">{textoVoz}</p>
-              ) : (
-                <span className="text-slate-500 text-xs italic">
-                  Presiona el micrófono y empieza a hablar... (ej: "Día 1: press banca 4 series de 10 reps, 20 minutos de bici estática LISS...")
-                </span>
-              )}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 min-h-[120px] text-sm text-slate-200 focus-within:border-indigo-500 relative flex flex-col">
+              <textarea
+                value={textoVoz}
+                onChange={(e) => setTextoVoz(e.target.value)}
+                placeholder='Presiona el micrófono y empieza a hablar... (ej: "Día 1: press banca 4 series de 10 reps, 20 minutos de bici estática LISS...")'
+                className="w-full bg-transparent text-slate-200 resize-none focus:outline-none flex-1 min-h-[120px] placeholder:text-slate-500 placeholder:italic placeholder:text-xs"
+              />
 
               {transcribiendo && (
                 <div className="absolute right-3 bottom-3 flex items-center gap-2 text-xs text-indigo-400 bg-slate-900/90 px-3 py-1 rounded-full border border-indigo-500/30">
@@ -1350,11 +1413,11 @@ export default function RutinasManager({
               >
                 {procesandoIA ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Estructurando rutina...
+                    <Loader2 className="w-4 h-4 animate-spin" /> {modifyingExerciseIdx !== null ? "Modificando ejercicio..." : isModifyingDay ? "Modificando día..." : "Estructurando rutina..."}
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-4 h-4" /> Estructurar con IA →
+                    <Sparkles className="w-4 h-4" /> {modifyingExerciseIdx !== null ? "Modificar con IA →" : isModifyingDay ? "Modificar con IA →" : "Estructurar con IA →"}
                   </>
                 )}
               </button>
@@ -1459,7 +1522,20 @@ export default function RutinasManager({
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setShowExercisePicker(true)}
+                      onClick={() => {
+                        setIsModifyingDay(true);
+                        setShowVoiceModal(true);
+                      }}
+                      className="bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors border border-slate-700 hover:border-rose-500/50"
+                      title="Editar este día con IA y Voz"
+                    >
+                      <Mic className="w-3.5 h-3.5" /> Modificar Día
+                    </button>
+                    <button
+                      onClick={() => {
+                        setReplacingExerciseIdx(null);
+                        setShowExercisePicker(true);
+                      }}
                       className="bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow"
                     >
                       <Plus className="w-3.5 h-3.5" /> Agregar Ejercicio
@@ -1496,19 +1572,34 @@ export default function RutinasManager({
                       >
                         {/* Miniatura + Nombre */}
                         <div className="flex items-center gap-3 min-w-[200px]">
-                          <div className="w-10 h-10 rounded-xl bg-slate-900 overflow-hidden shrink-0 flex items-center justify-center border border-slate-800">
+                          <button 
+                            type="button"
+                            onClick={() => setPreviewEjercicio({ ...ej, ejIdx })}
+                            className="w-10 h-10 rounded-xl bg-slate-900 overflow-hidden shrink-0 flex items-center justify-center border border-slate-800 hover:opacity-75 transition-opacity focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            title="Ver demostración del ejercicio"
+                          >
                             {ej.thumbnail_url ? (
                               <img src={ej.thumbnail_url} alt={ej.nombre} className="w-full h-full object-cover" />
                             ) : (
-                              <Dumbbell className="w-5 h-5 text-indigo-400" />
+                              <Dumbbell className={`w-5 h-5 ${ej.ejercicio_id ? 'text-indigo-400' : 'text-rose-500 opacity-60'}`} />
                             )}
-                          </div>
+                          </button>
                           <div>
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <h5 className="font-bold text-slate-100 text-xs">{ej.nombre}</h5>
+                              <h5 className={`font-bold text-xs ${!ej.ejercicio_id ? 'text-rose-400' : 'text-slate-100'}`}>
+                                {ej.nombre}
+                              </h5>
                               {isCardio && (
                                 <span className="text-[9px] bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-bold px-1.5 py-0.5 rounded">
                                   ⚡ Cardio
+                                </span>
+                              )}
+                              {!ej.ejercicio_id && (
+                                <span 
+                                  className="text-[9px] bg-rose-500/20 border border-rose-500/30 text-rose-400 font-bold px-1.5 py-0.5 rounded flex items-center gap-1 cursor-help"
+                                  title="La IA interpretó este ejercicio pero no existe en tu catálogo. El alumno solo verá el texto. Puedes cambiarlo por uno oficial pulsando el botón de 'Cambiar'."
+                                >
+                                  ⚠️ No está en el banco
                                 </span>
                               )}
                             </div>
@@ -1574,12 +1665,35 @@ export default function RutinasManager({
                               />
                             </div>
 
-                            <button
-                              onClick={() => handleEliminarEjercicio(ejIdx)}
-                              className="text-slate-500 hover:text-red-400 p-1"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => {
+                                  setModifyingExerciseIdx(ejIdx);
+                                  setShowVoiceModal(true);
+                                }}
+                                className="text-rose-400 hover:text-rose-300 p-1.5 bg-slate-900 rounded-lg border border-slate-800 hover:border-rose-500/50 transition-colors"
+                                title="Modificar con voz"
+                              >
+                                <Mic className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setReplacingExerciseIdx(ejIdx);
+                                  setShowExercisePicker(true);
+                                }}
+                                className="text-indigo-400 hover:text-indigo-300 p-1.5 bg-slate-900 rounded-lg border border-slate-800 hover:border-indigo-500/50 transition-colors"
+                                title="Cambiar ejercicio manualmente"
+                              >
+                                <RefreshCw className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleEliminarEjercicio(ejIdx)}
+                                className="text-slate-500 hover:text-red-400 p-1.5 bg-slate-900 rounded-lg border border-slate-800 transition-colors"
+                                title="Eliminar ejercicio"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         ) : (
                           <div className="flex flex-wrap items-center gap-3 text-xs w-full sm:w-auto">
@@ -1635,12 +1749,35 @@ export default function RutinasManager({
                               />
                             </div>
 
-                            <button
-                              onClick={() => handleEliminarEjercicio(ejIdx)}
-                              className="text-slate-500 hover:text-red-400 p-1"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => {
+                                  setModifyingExerciseIdx(ejIdx);
+                                  setShowVoiceModal(true);
+                                }}
+                                className="text-rose-400 hover:text-rose-300 p-1.5 bg-slate-900 rounded-lg border border-slate-800 hover:border-rose-500/50 transition-colors"
+                                title="Modificar con voz"
+                              >
+                                <Mic className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setReplacingExerciseIdx(ejIdx);
+                                  setShowExercisePicker(true);
+                                }}
+                                className="text-indigo-400 hover:text-indigo-300 p-1.5 bg-slate-900 rounded-lg border border-slate-800 hover:border-indigo-500/50 transition-colors"
+                                title="Cambiar ejercicio manualmente"
+                              >
+                                <RefreshCw className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleEliminarEjercicio(ejIdx)}
+                                className="text-slate-500 hover:text-red-400 p-1.5 bg-slate-900 rounded-lg border border-slate-800 transition-colors"
+                                title="Eliminar ejercicio"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -1700,11 +1837,62 @@ export default function RutinasManager({
         <ExercisePicker
           isOpen={showExercisePicker}
           onClose={() => setShowExercisePicker(false)}
-          onSelectExercise={handleSelectExercise}
+          onSelect={handleSelectExercise}
           ejerciciosGlobales={ejerciciosGlobales}
           ejerciciosCoach={ejerciciosCoach}
         />
       )}
+      {/* ========================================================= */}
+      {/* MODAL 6: PREVIEW DE EJERCICIO 👀 */}
+      {/* ========================================================= */}
+      {previewEjercicio && (
+        <div className="fixed inset-0 z-[70] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl">
+            <div className="relative w-full aspect-video bg-black flex items-center justify-center">
+              {previewEjercicio.video_demo_url ? (
+                <video src={previewEjercicio.video_demo_url} controls autoPlay loop className="w-full h-full object-cover" />
+              ) : previewEjercicio.thumbnail_url ? (
+                <img src={previewEjercicio.thumbnail_url} alt={previewEjercicio.nombre} className="w-full h-full object-cover" />
+              ) : (
+                <Dumbbell className="w-12 h-12 text-slate-600" />
+              )}
+              <button 
+                onClick={() => setPreviewEjercicio(null)} 
+                className="absolute top-3 right-3 bg-black/50 hover:bg-black/80 text-white p-1.5 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-5 space-y-4">
+              <div>
+                <h4 className="font-bold text-white text-lg">{previewEjercicio.nombre}</h4>
+                <p className="text-slate-400 text-xs mt-1">{previewEjercicio.grupo_muscular || "General"}</p>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  onClick={() => setPreviewEjercicio(null)}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs py-2.5 rounded-xl transition-all"
+                >
+                  Cerrar
+                </button>
+                <button
+                  onClick={() => {
+                    setReplacingExerciseIdx(previewEjercicio.ejIdx);
+                    setShowExercisePicker(true);
+                    setPreviewEjercicio(null);
+                  }}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Cambiar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
